@@ -13,6 +13,8 @@ from .fb_messager import messager_handler
 
 log = logging.getLogger(__name__)
 
+CHAT_BOT_ID = os.getenv('CHAT_BOT_ID', '')
+
 
 @static_assets(prefix='demo')
 def chat_demo():
@@ -22,20 +24,47 @@ def chat_demo():
 @messager_handler('fbwebhook')
 def echo(evt, postman):
     sender = evt['sender']['id']
-    if not get_user_by_username(sender):
-        signup(sender)
+    uid = get_user_by_username(sender)
+    if not uid:
+        uid = signup(sender)
+    log.info(uid)
     if 'message' in evt:
+        cid = get_conversation_by_uid(uid)
+        if not cid:
+            cid = create_conversation(uid)
         msg = evt['message']
         if 'text' in msg:
             r = postman.send(sender, msg['text'])
     log.info('Cat cannot handle')
 
 
-def get_container(user_id):
-    return SkygearContainer(
+def create_conversation(uid):
+    container = SkygearContainer(
         api_key=os.getenv('MASTER_KEY'),
-        user_id=user_id
+        user_id=uid
     )
+    result = container.send_action('record:save', {
+        'records': [{
+            '_id': 'conversation/' + uid + CHAT_BOT_ID,
+            'participant_ids': [uid, CHAT_BOT_ID],
+            'is_direct_message': True
+        }],
+        'database_id': '_public'
+    })
+    log.info(result)
+    return result['result'][0]['_id']
+
+
+def get_conversation_by_uid(uid):
+    with conn() as c:
+        conversation = get_table('conversation')
+        stmt = select([conversation.c._id]) \
+            .where(conversation.c._created_by == uid)
+        r = c.execute(stmt).fetchone()
+        if r is None:
+            return None
+        else:
+            return r[0]
 
 
 def get_user_by_username(fb_id):
@@ -43,7 +72,11 @@ def get_user_by_username(fb_id):
         users = get_table('_user')
         stmt = select([users.c.id]) \
             .where(users.c.username == fb_id)
-        return c.scalar(stmt)
+        r = c.execute(stmt).fetchone()
+        if r is None:
+            return None
+        else:
+            return r[0]
 
 
 def signup(user_id):
@@ -55,5 +88,5 @@ def signup(user_id):
         'username': user_id,
         'password': pw
     })
-    log.debug(result)
+    log.info(result)
     return result['id']
