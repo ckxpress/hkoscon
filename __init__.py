@@ -1,8 +1,10 @@
 import logging
 import os
 import hashlib
+import uuid
 from sqlalchemy.sql import select
 
+import skygear
 from skygear import static_assets
 from skygear.container import SkygearContainer
 from skygear.utils.assets import relative_assets
@@ -34,8 +36,27 @@ def echo(evt, postman):
             cid = create_conversation(uid)
         msg = evt['message']
         if 'text' in msg:
-            r = postman.send(sender, msg['text'])
-    log.info('Cat cannot handle')
+            body = msg['text']
+            create_message(cid, uid, body)
+            r = postman.send(sender, body)
+    log.info('cat cannot handle')
+
+
+def create_message(cid, uid, body):
+    container = SkygearContainer(
+        api_key=os.getenv('MASTER_KEY'),
+        user_id=uid
+    )
+    result = container.send_action('record:save', {
+        'records': [{
+            '_id': 'message/' + uuid.uuid4().urn[9:],
+            'conversation_id': cid,
+            'body': body 
+        }],
+        'database_id': '_private'
+    })
+    log.info(result)
+    return result['result'][0]['_id']
 
 
 def create_conversation(uid):
