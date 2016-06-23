@@ -22,8 +22,23 @@ CHAT_BOT_ID = os.getenv('CHAT_BOT_ID', '')
 def chat_demo():
     return relative_assets('chat/js-sdk/demo')
 
+wdict = {
+    'a': 'b',
+    'b': 'c'
+}
+
 
 @messager_handler('fbwebhook')
+def emoji(evt, postman):
+    sender = evt['sender']['id']
+    if 'message' in evt:
+        msg = evt['message']
+        if 'text' in msg:
+            body = msg['text']
+            for key in wdict:
+                body = body.replace(key, wdict[key])
+            r = postman.send(sender, body)
+
 def echo(evt, postman):
     sender = evt['sender']['id']
     uid = get_user_by_username(sender)
